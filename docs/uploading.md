@@ -69,6 +69,11 @@ nix build --eval-store auto --store "$mac" --no-link \
 
 macOS has no static build and no export.
 
+The commands above name Espressif's QEMU; every package and export is
+built, checked and uploaded the same way. `nix eval --json
+.#checks.SYSTEM --apply builtins.attrNames` lists the checks of a system;
+build all of them before uploading any output of it.
+
 Upload nothing whose checks failed.
 
 ## 2. Sign and upload

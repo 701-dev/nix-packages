@@ -23,7 +23,7 @@ itself except Docker, which it already has. The recipe is in
 
 - `Dockerfile`: Debian 13 with single-user Nix 2.31.2 (the release tarball,
   checked against its SHA-256), owned by an unprivileged user `builder`.
-- `nix-daemon`: a three-line wrapper that runs the container's
+- `nix-daemon`: a one-line wrapper script that runs the container's
   `nix-daemon` through `docker exec`. It is the only file placed on the
   host outside Docker, under `~/nix-packages-builder/`.
 - `up.sh USER@HOST [SSH-KEY]`: copies both files to the host, builds the

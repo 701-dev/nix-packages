@@ -13,12 +13,13 @@ emulator lanes run firmware on Espressif's QEMU.
 
 | Flake output | What it is | Systems |
 |---|---|---|
-| `packages.<system>.qemu-espressif` | [Espressif's QEMU fork](https://github.com/espressif/qemu) 9.2.2-20260417, headless: `qemu-system-xtensa` (machines `sim`, `esp32`, `esp32s3`) and `qemu-system-riscv32` (`esp32c3`, `sifive_e`), with Espressif's ROM images. Dynamically linked. | x86_64-linux, aarch64-linux |
+| `packages.<system>.qemu-espressif` | [Espressif's QEMU fork](https://github.com/espressif/qemu) 9.2.2-20260417, headless: `qemu-system-xtensa` (machines `sim`, `esp32`, `esp32s3`) and `qemu-system-riscv32` (`esp32c3`, `sifive_e`), with Espressif's ROM images. Dynamically linked. | x86_64-linux, aarch64-linux, aarch64-darwin |
 | `packages.<system>.qemu-espressif-static` | The same, fully static (musl). Runs on any Linux distribution. | x86_64-linux, aarch64-linux |
 | `exports.<system>.qemu-espressif` | The static build as a relocatable `.tar.xz` for hosts without Nix | x86_64-linux, aarch64-linux |
-| `checks.<system>.*` | A smoke test per package: version string, machines, ROMs, a start of the `sim` machine | x86_64-linux, aarch64-linux |
+| `checks.<system>.*` | A smoke test per package: version string, machines, ROMs, a start of the `sim` machine | x86_64-linux, aarch64-linux, aarch64-darwin |
 
-aarch64-darwin is planned; its builder is not set up yet.
+There is no static build or export for macOS: macOS has no static system
+library to link against, and Macs fetch the package with Nix.
 
 ## Using the binary cache
 
@@ -43,7 +44,9 @@ to trust them. A user who is not trusted by the Nix daemon has to add them
 to the system's configuration instead; the question is then not asked.
 
 Every package is uploaded with its whole runtime closure, glibc
-included, so a machine configured with only this cache needs no other.
+included on Linux, so a machine configured with only this cache needs no
+other. On macOS the closure links only against the system's own libraries
+and frameworks (`libSystem`, CoreFoundation, IOKit) beyond it.
 
 To fetch one path without changing any configuration:
 
@@ -82,7 +85,8 @@ nix build .#exports.x86_64-linux.qemu-espressif
 
 A build on a machine that trusts the cache fetches the result instead of
 building it. [docs/builders.md](docs/builders.md) says which machine builds
-which system and how to set up the aarch64-linux builder.
+which system and how to set up the aarch64-linux and aarch64-darwin
+builders.
 [docs/uploading.md](docs/uploading.md) is the procedure for signing and
 uploading by hand.
 

@@ -59,6 +59,16 @@ nix build --eval-store auto --store "$builder" --no-link \
   .#checks.aarch64-linux.qemu-espressif .#checks.aarch64-linux.qemu-espressif-static
 ```
 
+For aarch64-darwin, on the Mac ([builders.md](builders.md)):
+
+```sh
+mac='ssh-ng://USER@MAC?ssh-key=KEYFILE'
+nix build --eval-store auto --store "$mac" --no-link \
+  .#packages.aarch64-darwin.qemu-espressif .#checks.aarch64-darwin.qemu-espressif
+```
+
+macOS has no static build and no export.
+
 Upload nothing whose checks failed.
 
 ## 2. Sign and upload
@@ -69,6 +79,8 @@ scripts/upload.sh .#packages.x86_64-linux.qemu-espressif \
 
 scripts/upload.sh --from "$builder" .#packages.aarch64-linux.qemu-espressif \
   .#packages.aarch64-linux.qemu-espressif-static .#exports.aarch64-linux.qemu-espressif
+
+scripts/upload.sh --from "$mac" .#packages.aarch64-darwin.qemu-espressif
 ```
 
 The script
@@ -80,7 +92,10 @@ The script
 3. uploads them with their runtime closures, signing each path's
    `.narinfo` as it is written (`nix copy --to 's3://…?secret-key=…'`);
 4. finds every fixed-output path in each output's build closure, fetches
-   any this machine lacks, and uploads them too ([sources.md](sources.md));
+   any that is missing, and uploads them too ([sources.md](sources.md));
+   with `--from` they are fetched in the builder's store and staged here
+   like the outputs, since some (the macOS SDK, bootstrap tools) are
+   derivations for the builder's system that this machine cannot build;
 5. puts each export's `.tar.xz`, its `.sha256` and a `SOURCES.txt` under
    `exports/NAME/`.
 

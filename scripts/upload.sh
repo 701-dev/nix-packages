@@ -90,10 +90,16 @@ fod_paths() {  # their output paths: the sources
 
 # 4. The sources: every fixed-output path in the build closure (upstream
 #    tarballs and repositories, patches, bootstrap binaries). They are
-#    fetched here if this machine does not have them, then uploaded.
+#    fetched if missing, then uploaded. With --from they are fetched in the
+#    builder's store and staged here like the outputs: some are derivations
+#    for the builder's system (macOS SDK, bootstrap tools) that this machine
+#    can neither build nor always substitute.
 mapfile -t source_drvs < <(fod_drvs "${drvs[@]}")
-mapfile -t sources < <(nix build --no-link --print-out-paths "${source_drvs[@]/%/^*}")
-nix copy --to "$cache" "${sources[@]}"
+mapfile -t sources < <(nix build "${store_args[@]}" --no-link --print-out-paths "${source_drvs[@]/%/^*}")
+if [[ -n $from ]]; then
+  nix copy --no-check-sigs --from "$from" --to "$source_store?compression=none" "${sources[@]}"
+fi
+nix copy --no-check-sigs --from "$source_store" --to "$cache" "${sources[@]}"
 say "${#sources[@]} source path(s) uploaded"
 
 # 5. Exports also go under exports/NAME/ as plain files.

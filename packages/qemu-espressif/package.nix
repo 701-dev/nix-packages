@@ -4,9 +4,9 @@
 # Upstream:  https://github.com/espressif/qemu
 # Licence:   GPL-2.0-only (QEMU), with parts under other GPL-compatible licences.
 #
-# Called with the ordinary package set this gives a dynamically linked build;
-# called from pkgsStatic it gives a fully static (musl) one that runs on any
-# Linux distribution without Nix.
+# Called with the ordinary package set this gives a dynamically linked build,
+# on Linux and macOS; called from pkgsStatic (Linux only) it gives a fully
+# static (musl) one that runs on any Linux distribution without Nix.
 {
   lib,
   stdenv,
@@ -129,6 +129,13 @@ stdenv.mkDerivation (finalAttrs: {
     # The fork asks pkg-config for a static libslirp; a dynamic build links the shared one.
     sed -i '/slirp_dep = dependency(.slirp./,/static: true)/ s/static: true/static: false/' meson.build
   ''
+  + lib.optionalString stdenv.hostPlatform.isDarwin ''
+    # On macOS QEMU attaches its icon with Rez and SetFile, proprietary Xcode
+    # tools outside the build, writing a resource fork the Nix store cannot
+    # hold; nixpkgs' QEMU drops the two calls too. Without HVF there are no
+    # entitlements, so the script's codesign call does not run.
+    sed -i -e '/^Rez -append/d' -e '/^SetFile -a C/d' scripts/entitlement.sh
+  ''
   + ''
     patchShebangs .
     # A file named VERSION shadows the C++ <version> header on case-insensitive
@@ -199,7 +206,7 @@ stdenv.mkDerivation (finalAttrs: {
     description = "Espressif's QEMU fork, headless, for ESP32, ESP32-S3 and ESP32-C3";
     homepage = "https://github.com/espressif/qemu";
     license = lib.licenses.gpl2Only;
-    platforms = lib.platforms.linux;
+    platforms = lib.platforms.linux ++ lib.platforms.darwin;
     mainProgram = "qemu-system-xtensa";
   };
 })

@@ -16,12 +16,17 @@
     { self, nixpkgs }:
     let
       lib = nixpkgs.lib;
-      # Systems we build natively. aarch64-darwin follows once its builder is set up.
+      # Systems we build natively, each on its own builder (docs/builders.md).
       systems = [
         "x86_64-linux"
         "aarch64-linux"
+        "aarch64-darwin"
       ];
+      # A static build and its relocatable archive exist on Linux only: macOS
+      # has no static system library to link, and Mac hosts use Nix.
+      linuxSystems = lib.filter (lib.hasSuffix "-linux") systems;
       forAll = f: lib.genAttrs systems (system: f system nixpkgs.legacyPackages.${system});
+      forLinux = f: lib.genAttrs linuxSystems (system: f system nixpkgs.legacyPackages.${system});
 
       # Our packages, added to a nixpkgs package set.
       ours = pkgs: {
@@ -38,7 +43,7 @@
           static = ours pkgs.pkgsStatic;
         in
         dynamic
-        // {
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           qemu-espressif-static = static.qemu-espressif;
         }
       );
@@ -46,7 +51,7 @@
       # Archives for hosts and CI jobs without Nix. Each is a directory
       # holding NAME.tar.xz and NAME.tar.xz.sha256; scripts/upload.sh puts
       # them under exports/ in the cache bucket.
-      exports = forAll (
+      exports = forLinux (
         system: pkgs:
         let
           exportArchive = pkgs.callPackage ./lib/export-archive.nix { };
@@ -70,6 +75,8 @@
           qemu-espressif = pkgs.callPackage ./packages/qemu-espressif/test.nix {
             qemu-espressif = p.qemu-espressif;
           };
+        }
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           qemu-espressif-static = pkgs.callPackage ./packages/qemu-espressif/test.nix {
             qemu-espressif = p.qemu-espressif-static;
           };

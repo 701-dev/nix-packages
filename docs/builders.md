@@ -9,7 +9,7 @@ whichever machine holds the signing key.
 |---|---|---|
 | x86_64-linux | the maintainers' x86-64 Linux build machine | natively |
 | aarch64-linux | a Docker container with Nix on an arm64 Linux machine | as a remote store over SSH, driven from the x86-64 machine |
-| aarch64-darwin | not set up yet | |
+| aarch64-darwin | a Mac with Nix | as a remote store over SSH, driven from the x86-64 machine |
 
 There is no CI that uploads. The GitHub repository holds no keys, and no
 self-hosted runner is registered for it. Uploads are done by hand, as
@@ -71,10 +71,54 @@ On the host: `docker rm -f nix-packages-builder-aarch64`, `docker volume
 rm nix-packages-builder-nix`, `docker rmi nix-packages-builder-aarch64`
 and `rm -r ~/nix-packages-builder`.
 
+## The aarch64-darwin builder
+
+Nix cannot build macOS programs anywhere but on macOS, so Darwin outputs
+are built on a Mac. Nothing is installed for it beyond Nix itself: the
+Mac's own multi-user Nix daemon is the builder, reached over SSH the same
+way as the container. The Mac holds no keys; the outputs come back to the
+driving machine, which signs and uploads them.
+
+What the Mac needs:
+
+- a multi-user Nix install (the official installer or Determinate's) with
+  flakes enabled;
+- Remote Login (SSH) on, and the driving machine's public key in the
+  building user's `~/.ssh/authorized_keys`;
+- that user in `trusted-users` in `/etc/nix/nix.conf`, so the daemon
+  accepts derivations sent from another machine (`nix store info` says
+  `Trusted: 1`);
+- `nix-daemon` on the path of a non-interactive SSH command. The
+  installers arrange this through `/etc/zshenv`; otherwise add
+  `remote-program=/nix/var/nix/profiles/default/bin/nix-daemon` to the
+  store URL.
+
+Builds on macOS run without Nix's sandbox (`sandbox = false`, the default
+there), so a build can see `/usr/bin` and `/System`. The recipes ask for
+nothing from Xcode: QEMU's icon step, which would call Xcode's `Rez` and
+`SetFile`, is removed in the recipe, as nixpkgs' QEMU does. The smoke test
+runs on the same Mac.
+
+### Using it
+
+```sh
+mac='ssh-ng://USER@MAC?ssh-key=KEYFILE'
+nix store info --store "$mac"        # says Trusted: 1
+nix build --eval-store auto --store "$mac" --no-link \
+  .#packages.aarch64-darwin.qemu-espressif \
+  .#checks.aarch64-darwin.qemu-espressif
+```
+
+The results stay in the Mac's store until `scripts/upload.sh --from
+"$mac"` copies them back. They are ordinary store paths there, removed by
+the Mac's next `nix store gc` once nothing refers to them.
+
 ## Moving a builder
 
 To build on another machine, give it Nix (or, for aarch64-linux, run
-`up.sh` against it) and point the commands above at it. To move uploading
+`up.sh` against it) and point the commands above at it. Any Apple Silicon
+Mac set up as above replaces the aarch64-darwin builder, including a
+rented or CI one. To move uploading
 too, copy the signing key and the bucket key to the new machine by a
 private channel, never through the repository, and remove them from the
 old one.

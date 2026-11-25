@@ -1,7 +1,8 @@
 # Where the sources are
 
 Several of the programs in the binary cache are under the GPL: QEMU is
-GPL-2.0, and future packages such as GCC and GDB are GPL-3.0. Whoever
+GPL-2.0, GDB is GPL-3.0-or-later, and future packages such as GCC are
+GPL-3.0. Whoever
 distributes their binaries must also make the corresponding source
 available. This is how this repository does that.
 

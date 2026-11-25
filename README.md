@@ -7,7 +7,7 @@ machine with Nix fetches it from there. A machine or CI job without Nix
 downloads a plain archive built from the same recipe.
 
 The first user is [Landin](https://github.com/701-dev/Landin), whose
-emulator lanes run firmware on Espressif's QEMU.
+emulator lanes run firmware on these QEMUs and debug it with this GDB.
 
 ## Packages
 
@@ -16,7 +16,12 @@ emulator lanes run firmware on Espressif's QEMU.
 | `packages.<system>.qemu-espressif` | [Espressif's QEMU fork](https://github.com/espressif/qemu) 9.2.2-20260417, headless: `qemu-system-xtensa` (machines `sim`, `esp32`, `esp32s3`) and `qemu-system-riscv32` (`esp32c3`, `sifive_e`), with Espressif's ROM images. Dynamically linked. | x86_64-linux, aarch64-linux, aarch64-darwin |
 | `packages.<system>.qemu-espressif-static` | The same, fully static (musl). Runs on any Linux distribution. | x86_64-linux, aarch64-linux |
 | `exports.<system>.qemu-espressif` | The static build as a relocatable `.tar.xz` for hosts without Nix | x86_64-linux, aarch64-linux |
-| `checks.<system>.*` | A smoke test per package: version string, machines, ROMs, a start of the `sim` machine | x86_64-linux, aarch64-linux, aarch64-darwin |
+| `packages.<system>.qemu-arm` | [QEMU](https://www.qemu.org) 10.0.13, `qemu-system-arm` with only the Cortex-M machines `microbit` and `mps2-an385`/`-an386`/`-an500`/`-an505`/`-an511`/`-an521` (and `none`), headless, with TCG plugins and `include/qemu-plugin.h`. Dynamically linked, because a plugin is loaded with `dlopen`. | x86_64-linux, aarch64-linux |
+| `exports.<system>.qemu-arm` | The same as a relocatable `.tar.xz` that carries its shared libraries and glibc's loader: `bin/qemu-system-arm` runs `libexec/qemu-system-arm` through them | x86_64-linux, aarch64-linux |
+| `packages.<system>.gdb` | [GDB](https://www.sourceware.org/gdb/) 16.3 for the host, Arm and RISC-V targets, with Python 3.13; without debuginfod, babeltrace, Intel PT, source-highlight, Guile, the TUI, the simulators and gdbserver. Dynamically linked. | x86_64-linux, aarch64-linux |
+| `packages.<system>.gdb-static` | The same, fully static (musl), with Python linked in and its standard library beside it under `lib/python3.13`, found relative to the executable | x86_64-linux, aarch64-linux |
+| `exports.<system>.gdb` | The static build as a relocatable `.tar.xz` | x86_64-linux, aarch64-linux |
+| `checks.<system>.*` | A smoke test per package, and per export run unpacked outside the store: version string, machines or architectures, ROMs, a start of the `sim` machine, a TCG plugin loaded, GDB's Python and its library | x86_64-linux, aarch64-linux; aarch64-darwin for `qemu-espressif` |
 
 There is no static build or export for macOS: macOS has no static system
 library to link against, and Macs fetch the package with Nix.
@@ -61,8 +66,9 @@ user; anyone else configures the cache as above.)
 
 ## Without Nix
 
-Each export is a `.tar.xz` with one top-level directory holding `bin/`,
-`share/` and a `SOURCES` file. It needs nothing outside itself and can be
+Each export is a `.tar.xz` with one top-level directory holding `bin/`, a
+`SOURCES` file and what the program needs beside it (`share/`, `lib/`,
+`libexec/`). It needs nothing outside itself, glibc included, and can be
 unpacked anywhere:
 
 ```
@@ -94,6 +100,8 @@ uploading by hand.
 
 The recipes, scripts and documents here are dual-licensed MIT OR
 Apache-2.0; see [LICENSE](LICENSE). The programs they build keep their own
-licences, named in each recipe's `meta.license`. QEMU is GPL-2.0.
+licences, named in each recipe's `meta.license`. QEMU is GPL-2.0, GDB
+GPL-3.0-or-later; the `qemu-arm` archive also carries glibc (LGPL-2.1) and
+the libraries QEMU links.
 [docs/sources.md](docs/sources.md) says how the corresponding source of
 everything in the cache stays available.

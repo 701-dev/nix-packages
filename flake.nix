@@ -32,20 +32,31 @@
       ours = pkgs: {
         qemu-espressif = pkgs.callPackage ./packages/qemu-espressif/package.nix { };
       };
+      # Those built for Linux only: what Landin's Linux lanes run.
+      oursLinux = pkgs: {
+        qemu-arm = pkgs.callPackage ./packages/qemu-arm/package.nix { };
+        gdb = pkgs.callPackage ./packages/gdb/package.nix {
+          python3 = pkgs.callPackage ./packages/gdb/python.nix { };
+        };
+      };
     in
     {
-      overlays.default = final: _prev: ours final;
+      overlays.default =
+        final: _prev: ours final // lib.optionalAttrs final.stdenv.hostPlatform.isLinux (oursLinux final);
 
       packages = forAll (
         system: pkgs:
         let
-          dynamic = ours pkgs;
-          static = ours pkgs.pkgsStatic;
+          static = ours pkgs.pkgsStatic // oursLinux pkgs.pkgsStatic;
         in
-        dynamic
-        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          qemu-espressif-static = static.qemu-espressif;
-        }
+        ours pkgs
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux (
+          oursLinux pkgs
+          // {
+            qemu-espressif-static = static.qemu-espressif;
+            gdb-static = static.gdb;
+          }
+        )
       );
 
       # Archives for hosts and CI jobs without Nix. Each is a directory
@@ -55,13 +66,37 @@
         system: pkgs:
         let
           exportArchive = pkgs.callPackage ./lib/export-archive.nix { };
+          bundleArchive = pkgs.callPackage ./lib/bundle-archive.nix { };
           q = self.packages.${system}.qemu-espressif-static;
+          arm = self.packages.${system}.qemu-arm;
+          gdb = self.packages.${system}.gdb-static;
         in
         {
           qemu-espressif = exportArchive {
             package = q;
             name = "qemu-espressif-${q.version}-${system}";
             sources = [ q.src ] ++ lib.attrValues q.subprojects;
+          };
+          # Dynamic, because a lane loads a TCG plugin into it.
+          qemu-arm = bundleArchive {
+            package = arm;
+            programs = [ "qemu-system-arm" ];
+            extraDirs = [ "include" ];
+            name = "qemu-arm-${arm.version}-${system}";
+            sources = [ arm.src ];
+          };
+          gdb = exportArchive {
+            package = gdb;
+            name = "gdb-${gdb.version}-${system}";
+            dirs = [
+              "bin"
+              "share"
+              "lib"
+            ];
+            sources = [
+              gdb.src
+              gdb.python3.src
+            ];
           };
         }
       );
@@ -79,6 +114,17 @@
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           qemu-espressif-static = pkgs.callPackage ./packages/qemu-espressif/test.nix {
             qemu-espressif = p.qemu-espressif-static;
+          };
+          qemu-arm = pkgs.callPackage ./packages/qemu-arm/test.nix { qemu-arm = p.qemu-arm; };
+          qemu-arm-export = pkgs.callPackage ./packages/qemu-arm/test.nix {
+            qemu-arm = p.qemu-arm;
+            export = self.exports.${system}.qemu-arm;
+          };
+          gdb = pkgs.callPackage ./packages/gdb/test.nix { gdb = p.gdb; };
+          gdb-static = pkgs.callPackage ./packages/gdb/test.nix { gdb = p.gdb-static; };
+          gdb-export = pkgs.callPackage ./packages/gdb/test.nix {
+            gdb = p.gdb-static;
+            export = self.exports.${system}.gdb;
           };
         }
       );

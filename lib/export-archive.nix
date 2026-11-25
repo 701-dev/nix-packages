@@ -1,6 +1,6 @@
 # An archive of one package for hosts that do not use Nix: a reproducible
 # tar.xz whose single top-level directory holds the package's bin/ and
-# share/. It works only for packages that are relocatable and need nothing
+# share/, or the directories DIRS names. It works only for packages that are relocatable and need nothing
 # from /nix/store at run time, such as a static build.
 #
 # Beside the archive the derivation writes SOURCES, which names the store
@@ -16,6 +16,10 @@
   package,
   name ? "${package.pname}-${package.version}-${package.stdenv.hostPlatform.system}",
   sources ? [ ],
+  dirs ? [
+    "bin"
+    "share"
+  ],
 }:
 
 runCommand "${name}.tar.xz-export"
@@ -31,7 +35,7 @@ runCommand "${name}.tar.xz-export"
   }
   ''
     mkdir -p $out work/${name}
-    cp -r ${package}/bin ${package}/share work/${name}/
+    cp -r ${lib.concatMapStringsSep " " (d: "${package}/${d}") dirs} work/${name}/
     chmod -R u+w work
     find work -type f -exec nuke-refs {} +
     cat > work/${name}/SOURCES <<'END'

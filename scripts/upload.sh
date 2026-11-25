@@ -74,28 +74,24 @@ nix copy --no-check-sigs --from "$source_store" --to "$cache" "${outputs[@]}"
 say "outputs and closures uploaded"
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-fod_paths() {  # the fixed-output paths in DRV's build closure
-  nix derivation show --recursive "$1" | python3 -c 'import json, sys
-d = json.load(sys.stdin)
-d = d.get("derivations", d)
-for v in d.values():
-    for o in v["outputs"].values():
-        if "hash" in o:
-            p = o["path"]
-            print(p if p.startswith("/") else "/nix/store/" + p)' | sort -u
-}
-
-# 4. The sources: every fixed-output path in the build closure (upstream
-#    tarballs and repositories, patches, bootstrap binaries). They are
-#    fetched here if this machine does not have them, then uploaded.
-mapfile -t source_drvs < <(for d in "${drvs[@]}"; do
-  nix derivation show --recursive "$d" | python3 -c 'import json, sys
+fod_drvs() {  # the fixed-output derivations in the build closures of DRV...
+  for drv in "$@"; do
+    nix derivation show --recursive "$drv" | python3 -c 'import json, sys
 d = json.load(sys.stdin)
 d = d.get("derivations", d)
 for path, v in d.items():
     if any("hash" in o for o in v["outputs"].values()):
         print(path if path.startswith("/") else "/nix/store/" + path)'
-done | sort -u)
+  done | sort -u
+}
+fod_paths() {  # their output paths: the sources
+  fod_drvs "$@" | xargs -r nix-store --query --outputs | sort -u
+}
+
+# 4. The sources: every fixed-output path in the build closure (upstream
+#    tarballs and repositories, patches, bootstrap binaries). They are
+#    fetched here if this machine does not have them, then uploaded.
+mapfile -t source_drvs < <(fod_drvs "${drvs[@]}")
 mapfile -t sources < <(nix build --no-link --print-out-paths "${source_drvs[@]/%/^*}")
 nix copy --to "$cache" "${sources[@]}"
 say "${#sources[@]} source path(s) uploaded"

@@ -14,6 +14,7 @@
   fetchFromGitLab,
   buildPackages,
   pkg-config,
+  removeReferencesTo,
   meson,
   ninja,
   perl,
@@ -83,6 +84,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   depsBuildBuild = [ buildPackages.stdenv.cc ];
   nativeBuildInputs = [
+    removeReferencesTo
     pkg-config
     meson
     ninja
@@ -177,11 +179,19 @@ stdenv.mkDerivation (finalAttrs: {
     rm -rf $out/share/qemu/{keymaps,firmware,vhost-user} $out/share/{applications,icons} $out/libexec
   '';
 
-  # A static binary needs nothing at run time; do not drag the static
-  # libraries' store paths into its closure.
+  # A static binary needs nothing at run time. Drop the static libraries
+  # from its closure: the propagated inputs, and the data directories of
+  # glib and libgpg-error that it names but never opens (gio modules,
+  # locale files).
   postFixup = lib.optionalString isStatic ''
     rm -f $out/nix-support/propagated-build-inputs
+    rmdir --ignore-fail-on-non-empty $out/nix-support
+    remove-references-to -t ${glib.out} -t ${libgpg-error.out} $out/bin/*
   '';
+  disallowedReferences = lib.optionals isStatic [
+    glib.out
+    libgpg-error.out
+  ];
 
   passthru = { inherit subprojects; };
 

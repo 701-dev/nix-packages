@@ -1,0 +1,95 @@
+# nix-packages
+
+Nix recipes for the external tools that 701-dev's projects build and test
+with. Each tool is built from its upstream source and served, signed, from
+our own binary cache, together with the sources it was built from. A
+machine with Nix fetches it from there. A machine or CI job without Nix
+downloads a plain archive built from the same recipe.
+
+The first user is [Landin](https://github.com/701-dev/Landin), whose
+emulator lanes run firmware on Espressif's QEMU.
+
+## Packages
+
+| Flake output | What it is | Systems |
+|---|---|---|
+| `packages.<system>.qemu-espressif` | [Espressif's QEMU fork](https://github.com/espressif/qemu) 9.2.2-20260417, headless: `qemu-system-xtensa` (machines `sim`, `esp32`, `esp32s3`) and `qemu-system-riscv32` (`esp32c3`, `sifive_e`), with Espressif's ROM images. Dynamically linked. | x86_64-linux, aarch64-linux |
+| `packages.<system>.qemu-espressif-static` | The same, fully static (musl). Runs on any Linux distribution. | x86_64-linux, aarch64-linux |
+| `exports.<system>.qemu-espressif` | The static build as a relocatable `.tar.xz` for hosts without Nix | x86_64-linux, aarch64-linux |
+| `checks.<system>.*` | A smoke test per package: version string, machines, ROMs, a start of the `sim` machine | x86_64-linux, aarch64-linux |
+
+aarch64-darwin is planned; its builder is not set up yet.
+
+## Using the binary cache
+
+The cache is `https://701-nix-packages.nbg1.your-objectstorage.com`. It is
+public; nothing is needed to read it but the public key:
+
+```
+701-nix-packages-1:Nb/iOvlOiXg+1FzHGZyyNI4nE5pxNuQybb8WIhuW85Y=
+```
+
+To use it for everything, add both lines to `nix.conf` (on NixOS, to
+`nix.settings`):
+
+```
+extra-substituters = https://701-nix-packages.nbg1.your-objectstorage.com
+extra-trusted-public-keys = 701-nix-packages-1:Nb/iOvlOiXg+1FzHGZyyNI4nE5pxNuQybb8WIhuW85Y=
+```
+
+The flake announces the same two settings in its `nixConfig`, so
+`nix build github:701-dev/nix-packages#qemu-espressif` asks once whether
+to trust them. A user who is not trusted by the Nix daemon has to add them
+to the system's configuration instead; the question is then not asked.
+
+Every package is uploaded with its whole runtime closure, glibc
+included, so a machine configured with only this cache needs no other.
+
+To fetch one path without changing any configuration:
+
+```sh
+nix copy --from https://701-nix-packages.nbg1.your-objectstorage.com \
+  --trusted-public-keys '701-nix-packages-1:Nb/iOvlOiXg+1FzHGZyyNI4nE5pxNuQybb8WIhuW85Y=' \
+  /nix/store/HASH-NAME
+```
+
+(On a multi-user install the daemon only accepts these flags from a trusted
+user; anyone else configures the cache as above.)
+
+## Without Nix
+
+Each export is a `.tar.xz` with one top-level directory holding `bin/`,
+`share/` and a `SOURCES` file. It needs nothing outside itself and can be
+unpacked anywhere:
+
+```
+https://701-nix-packages.nbg1.your-objectstorage.com/exports/NAME/NAME.tar.xz
+https://701-nix-packages.nbg1.your-objectstorage.com/exports/NAME/NAME.tar.xz.sha256
+https://701-nix-packages.nbg1.your-objectstorage.com/exports/NAME/SOURCES.txt
+```
+
+where `NAME` is, for example, `qemu-espressif-9.2.2-20260417-x86_64-linux`.
+Check the archive against its `.sha256`, or better against a hash you
+recorded yourself, before you use it.
+
+## Building
+
+```sh
+nix build .#qemu-espressif-static     # for this machine's system
+nix flake check                       # the smoke tests
+nix build .#exports.x86_64-linux.qemu-espressif
+```
+
+A build on a machine that trusts the cache fetches the result instead of
+building it. [docs/builders.md](docs/builders.md) says which machine builds
+which system and how to set up the aarch64-linux builder.
+[docs/uploading.md](docs/uploading.md) is the procedure for signing and
+uploading by hand.
+
+## Licences
+
+The recipes, scripts and documents here are dual-licensed MIT OR
+Apache-2.0; see [LICENSE](LICENSE). The programs they build keep their own
+licences, named in each recipe's `meta.license`. QEMU is GPL-2.0.
+[docs/sources.md](docs/sources.md) says how the corresponding source of
+everything in the cache stays available.

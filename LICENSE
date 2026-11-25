@@ -1,0 +1,22 @@
+nix-packages
+Copyright (c) 2026 Jan Haan
+
+SPDX-License-Identifier: MIT OR Apache-2.0
+
+This repository is dual-licensed. You may use it under the terms of either
+
+  * the MIT license, in LICENSE-MIT, or
+  * the Apache License, Version 2.0, in LICENSE-APACHE,
+
+at your option.
+
+These terms cover what this repository itself contains: the Nix recipes,
+patches written here, scripts and documents. They do not cover the
+programs the recipes build. Each built program keeps its upstream licence,
+which its recipe names in meta.license; QEMU, for example, is GPL-2.0.
+docs/sources.md says how the corresponding source of every binary in the
+binary cache stays available.
+
+Unless you state otherwise, a contribution you intentionally submit for
+inclusion in this repository is licensed under the same dual terms, without
+any additional conditions.

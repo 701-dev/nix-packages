@@ -1,0 +1,6 @@
+#!/bin/sh
+# Installed on the container's host as ~/nix-packages-builder/nix-daemon.
+# The driving machine's Nix reaches the container's store through SSH to the
+# host with ?remote-program= naming this file; it runs the container's
+# nix-daemon on stdin and stdout.
+exec docker exec -i nix-packages-builder-aarch64 /home/builder/.nix-profile/bin/nix-daemon "$@"

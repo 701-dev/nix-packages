@@ -25,6 +25,10 @@ The sources are offered from the same place as the binaries, on the same
 terms (public, no account). They are not deleted while any binary built
 from them is still in the cache.
 
+For now nothing in the cache is ever deleted, sources and outputs alike:
+the cache is not garbage-collected (decided 2026-11-25, to be revisited
+when its size calls for a rule).
+
 ## Fetching them
 
 With Nix, a source path is fetched like any other path:

@@ -38,7 +38,36 @@
         gdb = pkgs.callPackage ./packages/gdb/package.nix {
           python3 = pkgs.callPackage ./packages/gdb/python.nix { };
         };
+        qemu-system = pkgs.callPackage ./packages/qemu-system/package.nix { };
+        emacs-nox = pkgs.callPackage ./packages/emacs-nox/package.nix { };
       };
+      # nixpkgs' own packages, unchanged, that this cache serves as well, so
+      # that a consumer configured with this cache alone needs no other
+      # (docs/served.md). Their store paths are nixpkgs' at this flake's
+      # revision: a consumer on the same revision gets them from here.
+      served =
+        pkgs:
+        let
+          llvm = pkgs.llvmPackages_19;
+        in
+        {
+          inherit (pkgs)
+            bubblewrap
+            neovim
+            gdb
+            ;
+          clang_19 = llvm.clang;
+          clang-unwrapped_19 = llvm.clang-unwrapped;
+          lld_19 = llvm.lld;
+          llvm_19 = llvm.llvm;
+          lldb_19 = llvm.lldb;
+        }
+        // lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+          inherit (pkgs) qemu-user;
+          mingw-w64_x86_64 = pkgs.pkgsCross.mingwW64.windows.mingw_w64;
+          gcc_riscv64-linux-gnu = pkgs.pkgsCross.riscv64.buildPackages.gcc;
+          glibc-static_riscv64-linux-gnu = pkgs.pkgsCross.riscv64.glibc.static;
+        };
     in
     {
       overlays.default =
@@ -58,6 +87,9 @@
           }
         )
       );
+
+      # nixpkgs' packages served unchanged from the cache, by system.
+      served = forLinux (_: served);
 
       # Archives for hosts and CI jobs without Nix. Each is a directory
       # holding NAME.tar.xz and NAME.tar.xz.sha256; scripts/upload.sh puts
@@ -122,6 +154,10 @@
           };
           gdb = pkgs.callPackage ./packages/gdb/test.nix { gdb = p.gdb; };
           gdb-static = pkgs.callPackage ./packages/gdb/test.nix { gdb = p.gdb-static; };
+          qemu-system = pkgs.callPackage ./packages/qemu-system/test.nix {
+            qemu-system = p.qemu-system;
+          };
+          emacs-nox = pkgs.callPackage ./packages/emacs-nox/test.nix { emacs-nox = p.emacs-nox; };
           gdb-export = pkgs.callPackage ./packages/gdb/test.nix {
             gdb = p.gdb-static;
             export = self.exports.${system}.gdb;

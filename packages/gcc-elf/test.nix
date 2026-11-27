@@ -37,11 +37,15 @@ runCommand "gcc-${target}-${if export == null then "" else "export-"}test"
     }
     bin=$root/bin/${target}
 
-    $bin-gcc --version | head -1 > version
+    # Into files, not through head: stdenv's pipefail fails the test
+    # when head exits before the program has written everything.
+    $bin-gcc --version > version.all
+    head -1 version.all > version
     grep -q '^${target}-gcc (701-dev nix-packages) ${gcc-elf.version}$' version \
       || { echo "gcc says:"; cat version; exit 1; }
-    $bin-as --version | head -1 | grep -q ' ${gcc-elf.binutilsVersion}$' \
-      || { echo "as says:"; $bin-as --version; exit 1; }
+    $bin-as --version > as.all
+    head -1 as.all | grep -q ' ${gcc-elf.binutilsVersion}$' \
+      || { echo "as says:"; cat as.all; exit 1; }
 
     $bin-gcc -print-multi-lib > multilibs
     diff -u $expected multilibs

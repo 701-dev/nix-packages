@@ -31,6 +31,9 @@
       # Our packages, added to a nixpkgs package set.
       ours = pkgs: {
         qemu-espressif = pkgs.callPackage ./packages/qemu-espressif/package.nix { };
+        gcc-arm-eabi = pkgs.callPackage ./packages/gcc-elf/package.nix { target = "arm-eabi"; };
+        gcc-riscv64-elf = pkgs.callPackage ./packages/gcc-elf/package.nix { target = "riscv64-elf"; };
+        actionlint = pkgs.callPackage ./packages/actionlint/package.nix { };
       };
       # Those built for Linux only: what Landin's Linux lanes run.
       oursLinux = pkgs: {
@@ -55,6 +58,9 @@
             bubblewrap
             neovim
             gdb
+            tree-sitter
+            shellcheck
+            lychee
             ;
           clang_19 = llvm.clang;
           clang-unwrapped_19 = llvm.clang-unwrapped;
@@ -84,6 +90,10 @@
           // {
             qemu-espressif-static = static.qemu-espressif;
             gdb-static = static.gdb;
+            # On Linux the bare-metal compilers are the static builds alone:
+            # one program serves Nix and the archive alike.
+            gcc-arm-eabi = static.gcc-arm-eabi;
+            gcc-riscv64-elf = static.gcc-riscv64-elf;
           }
         )
       );
@@ -102,8 +112,32 @@
           q = self.packages.${system}.qemu-espressif-static;
           arm = self.packages.${system}.qemu-arm;
           gdb = self.packages.${system}.gdb-static;
+          gccElf =
+            target:
+            let
+              gcc = self.packages.${system}."gcc-${target}";
+            in
+            exportArchive {
+              package = gcc;
+              name = "gcc-${target}-${gcc.version}-${system}";
+              dirs = [
+                "bin"
+                "lib"
+                "libexec"
+                "include"
+                "share"
+                target
+              ];
+              sources = [
+                gcc.src
+                gcc.binutils
+                gcc.newlib
+              ];
+            };
         in
         {
+          gcc-arm-eabi = gccElf "arm-eabi";
+          gcc-riscv64-elf = gccElf "riscv64-elf";
           qemu-espressif = exportArchive {
             package = q;
             name = "qemu-espressif-${q.version}-${system}";
@@ -142,6 +176,8 @@
           qemu-espressif = pkgs.callPackage ./packages/qemu-espressif/test.nix {
             qemu-espressif = p.qemu-espressif;
           };
+          gcc-arm-eabi = pkgs.callPackage ./packages/gcc-elf/test.nix { gcc-elf = p.gcc-arm-eabi; };
+          gcc-riscv64-elf = pkgs.callPackage ./packages/gcc-elf/test.nix { gcc-elf = p.gcc-riscv64-elf; };
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           qemu-espressif-static = pkgs.callPackage ./packages/qemu-espressif/test.nix {
@@ -158,6 +194,14 @@
             qemu-system = p.qemu-system;
           };
           emacs-nox = pkgs.callPackage ./packages/emacs-nox/test.nix { emacs-nox = p.emacs-nox; };
+          gcc-arm-eabi-export = pkgs.callPackage ./packages/gcc-elf/test.nix {
+            gcc-elf = p.gcc-arm-eabi;
+            export = self.exports.${system}.gcc-arm-eabi;
+          };
+          gcc-riscv64-elf-export = pkgs.callPackage ./packages/gcc-elf/test.nix {
+            gcc-elf = p.gcc-riscv64-elf;
+            export = self.exports.${system}.gcc-riscv64-elf;
+          };
           gdb-export = pkgs.callPackage ./packages/gdb/test.nix {
             gdb = p.gdb-static;
             export = self.exports.${system}.gdb;
